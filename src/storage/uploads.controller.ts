@@ -31,7 +31,7 @@ export class UploadsController {
   @ApiOperation({
     summary: 'Upload blog images',
     description:
-      'Any signed-in user. Accepts up to 10 files of 5MB each (jpeg, png, webp, gif) ' +
+      'Any signed-in user. Accepts up to 10 files of 4MB each (jpeg, png, webp, gif) ' +
       'and returns the stored url/path pairs to attach to a blog.',
   })
   @ApiConsumes('multipart/form-data')
@@ -68,7 +68,7 @@ export class UploadsController {
   @ApiOperation({
     summary: 'Upload a profile photo',
     description:
-      'Any signed-in user. One file up to 5MB (jpeg, png, webp, gif). Returns the ' +
+      'Any signed-in user. One file up to 4MB (jpeg, png, webp, gif). Returns the ' +
       'url/path pair to send to PATCH /users/me.',
   })
   @ApiConsumes('multipart/form-data')

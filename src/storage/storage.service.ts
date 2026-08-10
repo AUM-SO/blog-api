@@ -10,7 +10,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+// 4MB rather than 5: a Vercel Serverless Function rejects a request body over
+// 4.5MB at the platform edge, which never reaches this code and surfaces as a
+// bare 413 with no useful message. Staying under that leaves the limit ours to
+// enforce and to explain.
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 export const ALLOWED_IMAGE_TYPES = [
   'image/jpeg',
   'image/png',
@@ -78,7 +82,7 @@ export class StorageService {
       );
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      throw new BadRequestException('Each image must be 5MB or smaller');
+      throw new BadRequestException('Each image must be 4MB or smaller');
     }
 
     // Random name: the original filename is attacker-controlled and could

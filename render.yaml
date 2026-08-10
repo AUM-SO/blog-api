@@ -1,0 +1,45 @@
+# Render Blueprint. Render reads this from the repo root and provisions the
+# service, so the dashboard settings stay in version control instead of being
+# clicked in by hand.
+services:
+  - type: web
+    name: blog-api
+    runtime: node
+    plan: free
+    region: singapore
+    # `prisma migrate deploy` runs at build time, before the new instance takes
+    # traffic, so the schema is never behind the code that queries it.
+    buildCommand: yarn install --frozen-lockfile && yarn build && yarn prisma:deploy
+    startCommand: yarn start:prod
+    # The health check hits the liveness route, which also round-trips SELECT 1,
+    # so a deploy with a broken database connection is rolled back rather than
+    # promoted.
+    healthCheckPath: /api
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.1
+      # Render injects PORT itself; main.ts already reads it.
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: JWT_ACCESS_EXPIRES
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES
+        value: 7d
+      - key: SUPABASE_BUCKET
+        value: blogs-images
+      # Both must be set before the first production request: CORS_ORIGIN left
+      # unset falls back to allowing every origin.
+      - key: CORS_ORIGIN
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false

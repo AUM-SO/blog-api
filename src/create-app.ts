@@ -1,7 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { apiReference } from '@scalar/nestjs-api-reference';
 import { AppModule } from './app.module';
 
 const DESCRIPTION = `
@@ -96,6 +95,10 @@ export async function createApp(): Promise<INestApplication> {
   });
 
   // Scalar is the primary reference UI; Swagger UI stays at /api/docs as a fallback.
+  // Imported dynamically on purpose: the package's require() entry pulls in an
+  // ESM-only dependency, which throws ERR_REQUIRE_ESM from a CommonJS build.
+  // import() resolves the package's ESM entry instead, which loads cleanly.
+  const { apiReference } = await import('@scalar/nestjs-api-reference');
   app.use(
     '/api/reference',
     apiReference({

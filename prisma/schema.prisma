@@ -1,0 +1,177 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  GENERAL_USER
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique @db.VarChar(20)
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255)
+  role      Role     @default(GENERAL_USER)
+  isActive  Boolean  @default(false)
+  // Public URL served by Supabase Storage, same pattern as BlogImage.
+  avatarUrl  String? @db.VarChar(500)
+  // Object path inside the bucket, kept so the old file can be removed when
+  // the avatar is replaced — the public URL alone is not enough to address it.
+  avatarPath String? @db.VarChar(500)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  blogs         Blog[]
+  blogViews     BlogView[]
+  comments      Comment[]
+  notifications Notification[]  @relation("NotificationRecipient")
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+enum BlogStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Blog {
+  id        Int      @id @default(autoincrement())
+  title     String   @db.VarChar(255)
+  // Short summary written by the author, shown under the title in listings.
+  // Optional: older posts fall back to an excerpt cut from the body.
+  description String? @db.VarChar(300)
+  content   String   @db.Text
+  authorId  Int
+  // A draft is private to its author and ignores the display window entirely:
+  // scheduling only starts to mean anything once the post is published.
+  status    BlogStatus @default(PUBLISHED)
+  // Display window. null on either side means "no bound": a blog with both
+  // null is visible from the moment it is created and never expires, which is
+  // how every blog written before this field existed behaves.
+  publishedFrom  DateTime?
+  publishedUntil DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author   User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments Comment[]
+  images   BlogImage[]
+  tags     Tag[]       @relation("BlogTags")
+  views    BlogView[]
+
+  @@index([authorId])
+  @@index([status])
+  @@index([publishedFrom, publishedUntil])
+  @@map("blogs")
+}
+
+// One row per reader per blog rather than a counter on Blog: a plain counter
+// grows every time somebody refreshes, and this way "views" means "people",
+// which is the number worth showing.
+model BlogView {
+  blogId   Int
+  userId   Int
+  viewedAt DateTime @default(now())
+
+  blog Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([blogId, userId])
+  @@index([userId])
+  @@map("blog_views")
+}
+
+model Tag {
+  id Int @id @default(autoincrement())
+  // What the author typed, shown as-is on the blog.
+  name String @unique @db.VarChar(30)
+  // Lowercased, hyphenated form used in ?tag= URLs; the unique key that stops
+  // "Next.js" and "next.js" becoming two tags.
+  slug String @unique @db.VarChar(30)
+  createdAt DateTime @default(now())
+
+  blogs Blog[] @relation("BlogTags")
+
+  @@map("tags")
+}
+
+model BlogImage {
+  id     Int    @id @default(autoincrement())
+  blogId Int
+  // Public URL served by Supabase Storage.
+  url    String @db.VarChar(500)
+  // Object path inside the bucket, kept so the file can be removed later —
+  // the public URL alone is not enough to address the object.
+  path   String @db.VarChar(500)
+  // Exactly one image per blog may carry the cover flag; BlogsService keeps
+  // that invariant inside the same transaction that writes the images.
+  isCover  Boolean  @default(false)
+  position Int      @default(0)
+  createdAt DateTime @default(now())
+
+  blog Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@index([blogId])
+  @@map("blog_images")
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  blogId    Int
+  userId    Int
+  // Replies are one level deep: a reply always points at a top-level comment,
+  // never at another reply (enforced in CommentsService).
+  parentId  Int?
+  createdAt DateTime @default(now())
+
+  blog          Blog           @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent        Comment?       @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies       Comment[]      @relation("CommentReplies")
+  notifications Notification[]
+
+  @@index([blogId])
+  @@index([userId])
+  @@index([parentId])
+  @@map("comments")
+}
+
+model Notification {
+  id          Int      @id @default(autoincrement())
+  recipientId Int
+  commentId   Int
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  recipient User    @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, isRead])
+  @@map("notifications")
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique @db.VarChar(255)
+  userId    Int
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
